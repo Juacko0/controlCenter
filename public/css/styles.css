@@ -1,0 +1,11 @@
+/* Animación de borde rojo parpadeante */
+.pulse-red {
+  border: 4px solid red;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 5px red; }
+  50% { box-shadow: 0 0 20px red; }
+}
+
