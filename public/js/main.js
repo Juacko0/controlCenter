@@ -234,3 +234,17 @@ document.getElementById("exportPDF").addEventListener("click", () => {
 
   doc.save("historial_incidentes.pdf");
 });
+
+
+async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.getElementById("cam1");
+      video.srcObject = stream;
+    } catch (err) {
+      console.error("Error al acceder a la cámara:", err);
+    }
+  }
+
+  startCamera();
+  
