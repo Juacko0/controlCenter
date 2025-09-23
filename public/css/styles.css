@@ -9,3 +9,15 @@
   50% { box-shadow: 0 0 20px red; }
 }
 
+.camera {
+  width: 100%;
+  aspect-ratio: 16/9;  /* todas tendrán proporción widescreen */
+  background: #2d3748; /* gris oscuro de fondo */
+  border-radius: 8px;
+  object-fit: cover;   /* los videos no se deforman */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;        /* para los divs de texto */
+  font-size: 14px;
+}
