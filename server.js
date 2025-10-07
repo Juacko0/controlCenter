@@ -3,11 +3,11 @@ const express = require("express");
 const path = require("path");
 const bodyParser = require("body-parser");
 const webpush = require("web-push");
+const mongoose = require("mongoose");
+const Subscription = require("./models/Subscription");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-const Subscription = require("./models/Subscription");
-const mongoose = require("mongoose");
-
 const mongoURI = process.env.MONGO_URI;
 
 // ==============================
@@ -24,26 +24,6 @@ webpush.setVapidDetails(
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
-
-// Registrar suscripción
-app.post("/subscribe", async (req, res) => {
-  try {
-    const subscription = req.body;
-
-    // Guardar en la base de datos si no existe
-    await Subscription.updateOne(
-      { endpoint: subscription.endpoint },
-      subscription,
-      { upsert: true }
-    );
-
-    res.status(201).json({ message: "Suscripción registrada correctamente" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error guardando la suscripción" });
-  }
-});
-
 
 // ==============================
 // 🔑 Enviar clave pública al frontend
@@ -62,10 +42,25 @@ app.get("/", (req, res) => {
 // ==============================
 // 📩 Registrar suscripción
 // ==============================
-app.post("/subscribe", (req, res) => {
-  const subscription = req.body;
-  subscriptions.push(subscription);
-  res.status(201).json({ message: "Suscripción registrada correctamente" });
+app.post("/subscribe", async (req, res) => {
+  try {
+    const subscription = req.body;
+
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ message: "Subscription inválida" });
+    }
+
+    await Subscription.updateOne(
+      { endpoint: subscription.endpoint },
+      subscription,
+      { upsert: true }
+    );
+
+    res.status(201).json({ message: "Suscripción registrada correctamente" });
+  } catch (err) {
+    console.error("Error guardando suscripción:", err);
+    res.status(500).json({ message: "Error guardando la suscripción" });
+  }
 });
 
 // ==============================
@@ -76,14 +71,11 @@ app.post("/notify", async (req, res) => {
     const { title, message } = req.body;
     const payload = JSON.stringify({ title, body: message });
 
-    // Obtener todas las suscripciones de la DB
     const subscriptions = await Subscription.find();
 
     const notifications = subscriptions.map(sub =>
       webpush.sendNotification(sub, payload).catch(async err => {
         console.error("Error al enviar:", err);
-
-        // Si la suscripción ya no es válida, la eliminamos
         if (err.statusCode === 410 || err.statusCode === 404) {
           await Subscription.deleteOne({ endpoint: sub.endpoint });
         }
@@ -98,15 +90,15 @@ app.post("/notify", async (req, res) => {
   }
 });
 
+// ==============================
+// 🚀 Conexión a MongoDB e iniciar servidor
+// ==============================
 mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log("✅ Conectado a MongoDB"))
+  .then(() => {
+    console.log("✅ Conectado a MongoDB");
+    app.listen(PORT, () => {
+      console.log("Clave pública VAPID:", process.env.VAPID_PUBLIC_KEY);
+      console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+    });
+  })
   .catch(err => console.error("❌ Error conectando a MongoDB:", err));
-  
-// ==============================
-// 🚀 Iniciar servidor
-// ==============================
-app.listen(PORT, () => {
-  console.log("Clave pública VAPID:", process.env.VAPID_PUBLIC_KEY);
-  console.log("Clave privada VAPID:", process.env.VAPID_PRIVATE_KEY);
-  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-});
