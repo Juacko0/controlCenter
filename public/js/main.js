@@ -38,12 +38,11 @@ function stopSimulation() {
 // ==============================
 // 🚨 Generar incidente
 // ==============================
-function triggerIncident() {
+async function triggerIncident() {
   const cameras = document.querySelectorAll(".camera");
   const camera = cameras[Math.floor(Math.random() * cameras.length)];
   const location = camera.getAttribute("data-location");
   const time = new Date().toLocaleString();
-  const resident = "No registrado";
 
   // Mostrar modal
   incidentLocation.textContent = location;
@@ -51,46 +50,122 @@ function triggerIncident() {
   incidentDetail.value = "";
   alertModal.classList.replace("hidden", "flex");
 
-  // Resaltar cámara
+  // Resaltar cámara y sonido
   camera.classList.add("pulse-red");
   alertSound.currentTime = 0;
   alertSound.play();
 
-  // Agregar al historial
-  const incident = { location, time, resident, detail: "", state: "Pendiente" };
-  incidentHistory.push(incident);
-  updateQuickHistory();
+  // Guardar el incidente en memoria (NO en la BD aún)
+  const incident = {
+    location,
+    time: new Date(),
+    residentName: "No registrado",
+    detail: "",
+    state: "Pendiente",
+    isFall: false,
+    injuryLevel: 1,
+    intervention: {}
+  };
 
-  setTimeout(() => camera.classList.remove("pulse-red"), 3000);
+  // Quitar el efecto rojo luego de unos segundos
+  setTimeout(() => {
+    camera.classList.remove("pulse-red");
+  }, 3000);
+
+  // ⏳ Si no hay respuesta del usuario en 15 segundos → guardar como pendiente automáticamente
+  setTimeout(async () => {
+    if (alertModal.classList.contains("flex")) {
+      console.log("⏰ Tiempo expirado, guardando como pendiente...");
+    }
+  }, 15000);
 }
-
 // ==============================
 // 🕒 Historial rápido
 // ==============================
 function updateQuickHistory() {
   historyContainer.innerHTML = "";
+
   incidentHistory.forEach(inc => {
+    const fecha = inc.time ? new Date(inc.time).toLocaleString() : "Sin fecha";
+    const lugar = inc.location || "Ubicación desconocida";
+    const estado = inc.state || "Sin estado";
+
     const div = document.createElement("div");
     div.className = "p-2 bg-gray-700 rounded";
-    div.textContent = `${inc.time} - ${inc.location} - ${inc.state}`;
+    div.textContent = `${fecha} - ${lugar} - ${estado}`;
     historyContainer.appendChild(div);
   });
 }
 
-// ==============================
-// 🧩 Cerrar y marcar atendido
-// ==============================
-closeModal.addEventListener("click", () => {
+
+// Cerrar = guardar como pendiente
+closeModal.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  const incident = {
+    location: incidentLocation.textContent,
+    time: new Date(),
+    residentName: document.getElementById("incidentResident")?.value || "No registrado",
+    detail: incidentDetail.value || "Sin detalle",
+    state: "Pendiente",
+    isFall: document.getElementById("incidentType")?.value === "true",
+    injuryLevel: parseInt(document.getElementById("incidentInjuryLevel")?.value) || 1,
+    intervention: {
+      receivedAt: new Date().toISOString(),
+      attendedAt: null,
+      attendedBy: null
+    }
+  };
+
+  try {
+    const res = await fetch("/addIncident", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(incident)
+    });
+    const data = await res.json();
+    console.log("🟡 Incidente guardado manualmente como pendiente:", data);
+    incidentHistory.push(data.incident);
+    updateQuickHistory();
+  } catch (err) {
+    console.error("❌ Error guardando incidente:", err);
+  }
+
   alertModal.classList.replace("flex", "hidden");
 });
 
-markAttended.addEventListener("click", () => {
-  if (incidentHistory.length > 0) {
-    let lastIncident = incidentHistory[incidentHistory.length - 1];
-    lastIncident.state = "Atendido";
-    lastIncident.detail = incidentDetail.value || "Sin detalle";
+
+// Marcar atendido
+markAttended.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  const incident = {
+    location: incidentLocation.textContent,
+    time: new Date(),
+    residentName: document.getElementById("incidentResident")?.value || "No registrado",
+    detail: incidentDetail.value || "Sin detalle",
+    state: "Atendido",
+    isFall: document.getElementById("incidentType")?.value === "true",
+    injuryLevel: parseInt(document.getElementById("incidentInjuryLevel")?.value) || 1,
+    intervention: {
+      receivedAt: new Date().toISOString(),
+      attendedAt: new Date().toISOString(),
+      attendedBy: "Supervisor 1"
+    }
+  };
+
+  try {
+    const res = await fetch("/addIncident", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(incident)
+    });
+    const data = await res.json();
+    console.log("✅ Incidente atendido correctamente:", data);
+    incidentHistory.push(data.incident);
+    updateQuickHistory();
+  } catch (err) {
+    console.error("❌ Error guardando incidente atendido:", err);
   }
-  updateQuickHistory();
+
   alertModal.classList.replace("flex", "hidden");
 });
 
@@ -111,35 +186,72 @@ closeHistorial.addEventListener("click", () => {
   historialModal.classList.replace("flex", "hidden");
 });
 
-function loadHistorialTable(filters = {}) {
+function loadHistorialTable() {
   historialTable.innerHTML = "";
-  incidentHistory
-    .filter(inc => {
-      if (filters.date && !inc.time.startsWith(filters.date)) return false;
-      if (filters.state && inc.state !== filters.state) return false;
-      if (filters.location && !inc.location.toLowerCase().includes(filters.location.toLowerCase())) return false;
-      return true;
-    })
-    .forEach(inc => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="border px-2 py-1">${inc.time}</td>
-        <td class="border px-2 py-1">${inc.location}</td>
-        <td class="border px-2 py-1">${inc.detail}</td>
-        <td class="border px-2 py-1">${inc.state}</td>
-      `;
-      historialTable.appendChild(tr);
+  incidentHistory.forEach((inc, index) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="border px-2 py-1">${new Date(inc.time).toLocaleString()}</td>
+      <td class="border px-2 py-1">${inc.location}</td>
+      <td class="border px-2 py-1">${inc.detail}</td>
+      <td class="border px-2 py-1">${inc.state}</td>
+      <td class="border px-2 py-1 text-center">
+        <button class="edit-btn text-blue-400 hover:text-blue-600" data-index="${index}" title="Editar">
+          ✏️
+        </button>
+      </td>
+    `;
+    historialTable.appendChild(tr);
+  });
+
+  // 🎯 Asociar evento a cada botón de edición
+  document.querySelectorAll(".edit-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const idx = e.currentTarget.dataset.index;
+      openEditModal(incidentHistory[idx]);
     });
+  });
 }
+
+
+// ==============================
+// 📥 Cargar incidentes desde MongoDB
+// ==============================
+async function loadIncidentsFromDB() {
+  try {
+    const res = await fetch("/getIncidents");
+    const data = await res.json();
+    incidentHistory = data;
+    updateQuickHistory();
+    console.log("✅ Incidentes cargados desde MongoDB");
+  } catch (err) {
+    console.error("⚠️ Error cargando incidentes:", err);
+  }
+}
+loadIncidentsFromDB();
 
 // ==============================
 // 🔍 Filtros
 // ==============================
-document.getElementById("applyFilters").addEventListener("click", () => {
+document.getElementById("applyFilters").addEventListener("click", async () => {
   const date = document.getElementById("filterDate").value;
   const state = document.getElementById("filterState").value;
   const location = document.getElementById("filterLocation").value;
-  loadHistorialTable({ date, state, location });
+
+  try {
+    const res = await fetch("/filterIncidents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, state, location })
+    });
+    const data = await res.json();
+
+    incidentHistory = data;
+    loadHistorialTable(); // recarga la tabla
+  } catch (err) {
+    console.error("❌ Error aplicando filtros:", err);
+    alert("Error al aplicar filtros");
+  }
 });
 
 // ==============================
@@ -170,37 +282,6 @@ simTimeInput.addEventListener("change", () => {
 toggleSimBtn.addEventListener("click", () => (simRunning ? stopSimulation() : startSimulation()));
 
 // ==============================
-// 💾 Exportar CSV
-// ==============================
-document.getElementById("exportCSV").addEventListener("click", () => {
-  if (incidentHistory.length === 0) return alert("No hay datos para exportar.");
-  let csv = "Fecha/Hora,Ubicación,Residente,Detalle,Estado\n";
-  incidentHistory.forEach(inc => {
-    csv += `${inc.time},${inc.location},${inc.resident},${inc.detail},${inc.state}\n`;
-  });
-  const blob = new Blob([csv], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "historial_incidentes.csv";
-  link.click();
-});
-
-// ==============================
-// 📄 Exportar PDF
-// ==============================
-document.getElementById("exportPDF").addEventListener("click", () => {
-  if (incidentHistory.length === 0) return alert("No hay datos para exportar.");
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  doc.setFontSize(16);
-  doc.text("Historial de Incidentes", 14, 20);
-  const headers = ["Fecha/Hora", "Ubicación", "Detalle", "Estado"];
-  const data = incidentHistory.map(inc => [inc.time, inc.location, inc.detail, inc.state]);
-  doc.autoTable({ startY: 30, head: [headers], body: data });
-  doc.save("historial_incidentes.pdf");
-});
-
-// ==============================
 // 🎥 Cámara
 // ==============================
 async function startCamera() {
@@ -213,45 +294,165 @@ async function startCamera() {
 }
 startCamera();
 
+
 // ==============================
-// 🔔 Notificaciones Push + SW
+// 📤 Exportar Historial (PDF / CSV)
 // ==============================
-if ("serviceWorker" in navigator && "PushManager" in window) {
-  (async () => {
-    try {
-      const registration = await navigator.serviceWorker.register("/service-worker.js");
-      console.log("✅ Service Worker registrado");
+// Exportar CSV
+document.getElementById("exportCSV").addEventListener("click", async () => {
+  try {
+    const response = await fetch("/getIncidents");
+    const incidents = await response.json();
 
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") return console.warn("❌ Permiso denegado");
+    if (!incidents.length) return alert("No hay datos para exportar.");
 
-      const vapidKey = (await (await fetch("/vapidPublicKey")).text()).trim();
-      console.log("🔑 Clave pública recibida:", vapidKey);
+    // ✅ Encabezados CSV (separados por ;)
+    const headers = ["ID", "Fecha", "Ubicación", "Detalle", "Estado", "Registrado por"];
 
-      const sub = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      });
+    // ✅ Filas CSV con ; como separador
+    const rows = incidents.map(inc => [
+      inc._id || "N/A",
+      new Date(inc.time).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "medium" }),
+      (inc.location || "Sin ubicación").replace(/;/g, ","), // evita romper el CSV
+      `"${(inc.detail || "").replace(/"/g, '""')}"`, // escapa comillas
+      inc.status || "Pendiente",
+      inc.user || "Desconocido"
+    ]);
 
-      await fetch("/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub),
-      });
+    // ✅ Une usando punto y coma
+    const csvContent = headers.join(";") + "\n" + rows.map(r => r.join(";")).join("\n");
 
-      console.log("📩 Usuario suscrito correctamente");
-    } catch (err) {
-      console.error("Error registrando SW:", err);
-    }
-  })();
+    // ✅ Crear blob con codificación UTF-8 + BOM (para Excel)
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Historial_Incidentes_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    console.log("✅ CSV exportado correctamente con separador ;");
+  } catch (err) {
+    console.error("❌ Error al exportar CSV:", err);
+    alert("Error al generar el CSV.");
+  }
+});
+
+// Exportar PDF
+document.getElementById("exportPDF").addEventListener("click", () => {
+  if (!incidentHistory.length) return alert("No hay datos para exportar.");
+
+  const ventana = window.open("", "_blank");
+  ventana.document.write("<h1>Reporte de Incidentes</h1>");
+  ventana.document.write("<table border='1' style='border-collapse:collapse; width:100%'>");
+  ventana.document.write("<tr><th>Fecha</th><th>Ubicación</th><th>Detalle</th><th>Estado</th></tr>");
+
+  incidentHistory.forEach(inc => {
+    ventana.document.write(`
+      <tr>
+        <td>${new Date(inc.time).toLocaleString()}</td>
+        <td>${inc.location}</td>
+        <td>${inc.detail}</td>
+        <td>${inc.state}</td>
+      </tr>
+    `);
+  });
+
+  ventana.document.write("</table>");
+  ventana.print();
+});
+
+// ==============================
+// ✏️ Editar incidente
+// ==============================
+const editModal = document.getElementById("editModal");
+const editLocation = document.getElementById("editLocation");
+const editDetail = document.getElementById("editDetail");
+const editState = document.getElementById("editState");
+const saveEdit = document.getElementById("saveEdit");
+const cancelEdit = document.getElementById("cancelEdit");
+
+let currentIncident = null;
+
+// Abre el modal con los datos actuales
+function openEditModal(incident) {
+  currentIncident = incident;
+  editLocation.value = incident.location;
+  editDetail.value = incident.detail;
+  editState.value = incident.state;
+  editModal.classList.replace("hidden", "flex");
 }
 
+// Cerrar modal
+cancelEdit.addEventListener("click", () => {
+  editModal.classList.replace("flex", "hidden");
+  currentIncident = null;
+});
+
+// Guardar edición
+saveEdit.addEventListener("click", async () => {
+  if (!currentIncident) return;
+
+  const updated = {
+    ...currentIncident,
+    location: editLocation.value.trim(),
+    detail: editDetail.value.trim(),
+    state: editState.value.trim()
+  };
+
+  try {
+    const res = await fetch(`/updateIncident/${currentIncident._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updated)
+    });
+
+    const data = await res.json();
+    console.log("✅ Incidente actualizado:", data);
+
+    // Cierra el modal
+    editModal.classList.replace("flex", "hidden");
+    currentIncident = null;
+
+    // Recarga historial rápido y tabla completa (sin refrescar la página)
+    await loadIncidentsFromDB();
+    await loadHistorialTable();
+
+  } catch (err) {
+    console.error("❌ Error al actualizar incidente:", err);
+    alert("No se pudo actualizar el incidente");
+  }
+});
+
 // ==============================
-// 🔧 Utilidad: conversión de clave
+// 🔍 Filtros (versión mejorada)
 // ==============================
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = window.atob(base64);
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
-}
+document.getElementById("applyFilters").addEventListener("click", async () => {
+  const date = document.getElementById("filterDate").value;
+  const state = document.getElementById("filterState").value;
+  const location = document.getElementById("filterLocation").value;
+
+  try {
+    const res = await fetch("/filterIncidents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, state, location })
+    });
+    const data = await res.json();
+
+    // Normalizamos mayúsculas/minúsculas por si hay diferencias en la BD
+    incidentHistory = data.map(inc => ({
+      ...inc,
+      state: inc.state?.trim()?.toLowerCase() === "atendido" ? "Atendido" :
+             inc.state?.trim()?.toLowerCase() === "pendiente" ? "Pendiente" :
+             inc.state || "Sin estado"
+    }));
+
+    loadHistorialTable();
+  } catch (err) {
+    console.error("❌ Error aplicando filtros:", err);
+    alert("Error al aplicar filtros");
+  }
+});
+

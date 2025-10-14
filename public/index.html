@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Centro de Control - Cámaras</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/styles.css">
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#111827">
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#111827" />
+
   <!-- jsPDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -17,9 +18,7 @@
   <!-- Barra superior -->
   <header class="flex justify-between items-center px-4 py-2 bg-gray-800 shadow">
     <h1 class="text-xl font-bold">Centro de Control</h1>
-    <button id="configBtn" class="p-2 rounded-full hover:bg-gray-700">
-      ⚙️
-    </button>
+    <button id="configBtn" class="p-2 rounded-full hover:bg-gray-700">⚙️</button>
   </header>
 
   <!-- Contenido principal -->
@@ -38,23 +37,44 @@
       <div id="incidentHistory" class="space-y-2 overflow-y-auto flex-1">
         <p class="text-gray-400">Sin incidentes registrados</p>
       </div>
-      <button id="verHistorialBtn" class="mt-4 bg-blue-600 px-4 py-2 rounded hover:bg-blue-700">
-        Ver historial completo
-      </button>
+      <button id="verHistorialBtn" class="mt-4 bg-blue-600 px-4 py-2 rounded hover:bg-blue-700">Ver historial completo</button>
     </aside>
   </main>
 
   <!-- Modal de alerta -->
   <div id="alertModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
     <div class="bg-white text-black p-6 rounded-lg w-96">
-      <h3 class="text-xl font-bold text-red-600 mb-4">¡Caída detectada!</h3>
+      <h3 class="text-xl font-bold text-red-600 mb-4">🚨 ¡Incidente Detectado!</h3>
+
       <p><strong>📍 Ubicación:</strong> <span id="incidentLocation"></span></p>
       <p><strong>⏱️ Hora:</strong> <span id="incidentTime"></span></p>
-      <label class="block mt-3">📝 Detalle:
-        <input type="text" id="incidentDetail" placeholder="Ej. Lesión leve, requiere enfermería" class="border p-2 rounded w-full">
+
+      <label class="block mt-3">👤 Nombre del residente:
+        <input type="text" id="incidentResident" placeholder="Ej. Ana Torres" class="border p-2 rounded w-full" />
       </label>
+
+      <label class="block mt-3">🩹 Nivel de lesión:
+        <select id="incidentInjuryLevel" class="border p-2 rounded w-full">
+          <option value="1">1 - Leve</option>
+          <option value="2">2 - Moderada</option>
+          <option value="3">3 - Grave</option>
+        </select>
+      </label>
+
+      <label class="block mt-3">💥 Tipo de incidente:
+        <select id="incidentType" class="border p-2 rounded w-full">
+          <option value="false">Otro (no caída)</option>
+          <option value="true">Caída</option>
+        </select>
+      </label>
+
+      <label class="block mt-3">📝 Detalle:
+        <textarea id="incidentDetail" placeholder="Ej. Resbalón en el comedor, sin lesiones aparentes" class="border p-2 rounded w-full"></textarea>
+      </label>
+
       <div class="flex justify-end mt-4 space-x-2">
-        <button id="markAttended" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">✅ Atendido</button>
+        <button id="saveIncident" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">💾 Guardar</button>
+        <button id="markAttended" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">✅ Marcar atendido</button>
         <button id="closeModal" class="bg-gray-400 px-4 py-2 rounded hover:bg-gray-500">Cerrar</button>
       </div>
     </div>
@@ -64,16 +84,16 @@
   <div id="historialModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
     <div class="bg-white text-black p-6 rounded-lg w-3/4 h-3/4 flex flex-col">
       <h3 class="text-xl font-bold mb-4">Historial Completo</h3>
-      
+
       <!-- Filtros -->
       <div class="flex space-x-4 mb-4">
-        <input type="date" id="filterDate" class="border p-2 rounded">
+        <input type="date" id="filterDate" class="border p-2 rounded" />
         <select id="filterState" class="border p-2 rounded">
           <option value="">Estado</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="✅Atendido">Atendido</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="Atendido">Atendido</option>
         </select>
-        <input type="text" id="filterLocation" placeholder="Ubicación" class="border p-2 rounded flex-1">
+        <input type="text" id="filterLocation" placeholder="Ubicación" class="border p-2 rounded flex-1" />
         <button id="applyFilters" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Filtrar</button>
       </div>
 
@@ -108,14 +128,38 @@
     <div class="bg-white text-black p-6 rounded-lg w-96">
       <h3 class="text-xl font-bold mb-4">Configuración</h3>
       <label class="block mb-2">🔊 Volumen de alerta
-        <input type="range" min="0" max="1" step="0.1" id="volumeControl" class="w-full">
+        <input type="range" min="0" max="1" step="0.1" id="volumeControl" class="w-full" />
       </label>
       <label class="block mb-2">⏱️ Tiempo de simulación (segundos)
-        <input type="number" id="simTime" value="3" class="border p-1 w-full rounded">
+        <input type="number" id="simTime" value="3" class="border p-1 w-full rounded" />
       </label>
       <div class="flex justify-between mt-4">
         <button id="toggleSimBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">▶️ Iniciar simulación</button>
         <button id="closeConfig" class="bg-gray-400 px-4 py-2 rounded hover:bg-gray-500">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de edición -->
+  <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-60 justify-center items-center">
+    <div class="bg-gray-800 p-6 rounded-2xl w-96">
+      <h2 class="text-xl mb-3 text-center font-semibold">✏️ Editar Incidente</h2>
+      <label class="block mb-1 text-sm">Ubicación:</label>
+      <input id="editLocation" class="w-full mb-2 p-1 rounded bg-gray-700 border border-gray-600" />
+
+      <label class="block mb-1 text-sm">Detalle:</label>
+      <textarea id="editDetail" class="w-full mb-2 p-1 rounded bg-gray-700 border border-gray-600"></textarea>
+
+      <label class="block mb-1 text-sm">Estado:</label>
+      <select id="editState" class="w-full mb-4 p-1 rounded bg-gray-700 border border-gray-600">
+        <option>Pendiente</option>
+        <option>Atendido</option>
+        <option>En revisión</option>
+      </select>
+
+      <div class="flex justify-between">
+        <button id="saveEdit" class="bg-green-500 px-3 py-1 rounded hover:bg-green-600">Guardar</button>
+        <button id="cancelEdit" class="bg-gray-500 px-3 py-1 rounded hover:bg-gray-600">Cancelar</button>
       </div>
     </div>
   </div>
@@ -125,11 +169,12 @@
 
   <script src="js/main.js"></script>
   <script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("service-worker.js")
-      .then(() => console.log("✅ Service Worker registrado"))
-      .catch(err => console.error("❌ Error registrando SW:", err));
-  }
-</script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("service-worker.js")
+        .then(() => console.log("✅ Service Worker registrado"))
+        .catch(err => console.error("❌ Error registrando SW:", err));
+    }
+  </script>
 </body>
 </html>
