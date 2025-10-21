@@ -10,10 +10,17 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "body-parser": "^2.2.0",
+    "connect-mongo": "^5.1.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "express-ws": "^5.0.2",
+    "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.1",
-    "web-push": "^3.6.7"
+    "rtsp-relay": "^1.9.0",
+    "web-push": "^3.6.7",
+    "ws": "^8.18.3"
   }
 }

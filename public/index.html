@@ -15,17 +15,86 @@
 </head>
 <body class="bg-gray-900 text-white h-screen flex flex-col">
 
+<!-- 🔒 LOGIN DIFUMINADO -->
+<div id="loginOverlay" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-lg">
+  <!-- Fondo difuminado -->
+  <div class="absolute inset-0 bg-[url('assets/fondo-control.jpg')] bg-cover bg-center blur-sm"></div>
+
+  <!-- Capa semitransparente -->
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-md"></div>
+
+  <!-- Cuadro de login -->
+  <div class="relative z-10 flex items-center justify-center">
+    <div class="bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-2xl w-96 text-center border border-white/20">
+      <h2 class="text-2xl font-semibold text-white mb-6">🔐 Inicia Sesión</h2>
+      <form id="loginForm" class="space-y-4">
+        <input type="text" id="usuario" placeholder="Código (ej. P001)" class="w-full px-4 py-2 rounded-lg bg-white/20 text-white placeholder-gray-300 focus:outline-none">
+        <input type="password" id="password" placeholder="PIN de acceso" class="w-full px-4 py-2 rounded-lg bg-white/20 text-white placeholder-gray-300 focus:outline-none">
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">Entrar</button>
+      </form>
+    </div>
+  </div>
+</div>
+
   <!-- Barra superior -->
-  <header class="flex justify-between items-center px-4 py-2 bg-gray-800 shadow">
-    <h1 class="text-xl font-bold">Centro de Control</h1>
-    <button id="configBtn" class="p-2 rounded-full hover:bg-gray-700">⚙️</button>
+<header class="flex justify-between items-center px-6 py-3 bg-gray-800 shadow-md">
+  <!-- Título -->
+  <h1 class="text-2xl font-bold">Centro de Control</h1>
+  <span id="usuarioActivoLabel" class="text-gray-300 ml-2 text-sm"></span>
+  <header class="flex justify-end p-4 bg-gray-800 text-white">
+  <span id="usuarioActivoLabel" class="mr-4"></span>
+  <button id="logoutButton" class="bg-red-500 px-3 py-1 rounded hover:bg-red-600">
+    Cerrar sesión
+  </button>
   </header>
 
-  <!-- Contenido principal -->
-  <main class="flex flex-1 overflow-hidden">
+  <!-- Navegación + Configuración -->
+  <div class="flex items-center space-x-2">
+    <button id="btnProfesionales"
+      class="px-3 py-2 rounded-lg font-medium bg-gray-700/60 backdrop-blur-sm hover:bg-gray-600/70 hover:shadow-md hover:shadow-gray-500/20 transition-all duration-200">
+      Gestión de Profesionales
+    </button>
+
+    <button id="btnResidentes"
+      class="px-3 py-2 rounded-lg font-medium bg-gray-700/60 backdrop-blur-sm hover:bg-gray-600/70 hover:shadow-md hover:shadow-gray-500/20 transition-all duration-200">
+      Gestión de Residentes
+    </button>
+
+    <button id="configBtn"
+      class="ml-3 p-2 rounded-full hover:bg-gray-700 text-2xl transition-all duration-200">
+      ⚙️
+    </button>
+  </div>
+<!-- 🪟 Modal de Datos -->
+<div id="dataModal" class="modal hidden fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 transition">
+  <div class="bg-gray-900 text-white rounded-2xl shadow-2xl w-11/12 md:w-3/4 lg:w-1/2 p-6 relative border border-gray-700">
+    
+    <!-- Botón cerrar -->
+    <button id="closeModal" class="absolute top-3 right-3 text-gray-400 hover:text-white text-3xl font-bold">
+      &times;
+    </button>
+
+    <!-- Título -->
+    <h2 id="modalTitle" class="text-2xl font-semibold mb-4 text-blue-400 border-b border-gray-700 pb-2">
+      Datos
+    </h2>
+
+    <!-- Contenido -->
+    <div id="modalContent" class="overflow-x-auto max-h-[70vh]">
+      <!-- Aquí se insertará dinámicamente la tabla -->
+      <p class="text-gray-400 text-center">Cargando información...</p>
+    </div>
+  </div>
+</div>
+</header>
+<!-- Contenido principal -->
+<main class="flex flex-1 overflow-hidden flex-col">
+
+  <!-- 🔹 Vista principal: Cámaras + Historial -->
+  <div id="mainSection" class="flex flex-1 overflow-hidden">
     <!-- Cámaras -->
     <section class="flex-1 grid grid-cols-2 gap-2 p-2 overflow-y-auto">
-      <video id="cam1" class="camera bg-black rounded-lg" data-location="Cámara Laptop" autoplay playsinline></video>
+      <canvas id="cam1" class="camera bg-black rounded-lg" data-location="Cámara Laptop"></canvas>
       <div class="camera bg-gray-700 flex items-center justify-center rounded-lg" data-location="Pasillo Norte">Cámara 2</div>
       <div class="camera bg-gray-700 flex items-center justify-center rounded-lg" data-location="Comedor">Cámara 3</div>
       <div class="camera bg-gray-700 flex items-center justify-center rounded-lg" data-location="Habitación 12">Cámara 4</div>
@@ -37,9 +106,65 @@
       <div id="incidentHistory" class="space-y-2 overflow-y-auto flex-1">
         <p class="text-gray-400">Sin incidentes registrados</p>
       </div>
-      <button id="verHistorialBtn" class="mt-4 bg-blue-600 px-4 py-2 rounded hover:bg-blue-700">Ver historial completo</button>
+      <button id="verHistorialBtn" class="mt-4 bg-blue-600 px-4 py-2 rounded hover:bg-blue-700">
+        Ver historial completo
+      </button>
     </aside>
-  </main>
+  </div>
+
+  <!-- 🔹 Modal: Gestión de Profesionales -->
+  <div id="profesionalesModal"
+    class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50">
+    <div class="bg-gray-800 rounded-lg shadow-lg w-11/12 max-w-4xl p-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Gestión de Profesionales</h2>
+        <button id="closeProfesionales" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+      </div>
+      <p class="text-gray-400 mb-3">Administra el personal médico y de enfermería.</p>
+      <div class="overflow-x-auto">
+        <table class="min-w-full bg-gray-800 border border-gray-700 rounded-lg">
+          <thead class="bg-gray-700">
+            <tr>
+              <th class="px-4 py-2 text-left">ID</th>
+              <th class="px-4 py-2 text-left">Nombre</th>
+              <th class="px-4 py-2 text-left">Horario</th>
+              <th class="px-4 py-2 text-left">Código PWA</th>
+              <th class="px-4 py-2 text-left">Estado</th>
+              <th class="px-4 py-2 text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaProfesionales"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔹 Modal: Gestión de Residentes -->
+  <div id="residentesModal"
+    class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50">
+    <div class="bg-gray-800 rounded-lg shadow-lg w-11/12 max-w-3xl p-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Gestión de Residentes</h2>
+        <button id="closeResidentes" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+      </div>
+      <p class="text-gray-400 mb-3">Administra los residentes del centro.</p>
+      <div class="overflow-x-auto">
+        <table class="min-w-full bg-gray-800 border border-gray-700 rounded-lg">
+          <thead class="bg-gray-700">
+            <tr>
+              <th class="px-4 py-2 text-left">ID</th>
+              <th class="px-4 py-2 text-left">Nombre Completo</th>
+              <th class="px-4 py-2 text-left">Apoyo para Caminar</th>
+              <th class="px-4 py-2 text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaResidentes"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
 
   <!-- Modal de alerta -->
   <div id="alertModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
@@ -75,7 +200,7 @@
       <div class="flex justify-end mt-4 space-x-2">
         <button id="saveIncident" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">💾 Guardar</button>
         <button id="markAttended" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">✅ Marcar atendido</button>
-        <button id="closeModal" class="bg-gray-400 px-4 py-2 rounded hover:bg-gray-500">Cerrar</button>
+        <button id="closeIncidentModal" class="bg-gray-400 px-4 py-2 rounded hover:bg-gray-500">Cerrar</button>
       </div>
     </div>
   </div>
@@ -167,6 +292,7 @@
   <!-- Audio -->
   <audio id="alertSound" src="assets/alert.mp3"></audio>
 
+  <script src="/rtsp-relay.js"></script>
   <script src="js/main.js"></script>
   <script>
     if ("serviceWorker" in navigator) {

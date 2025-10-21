@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const incidentSchema = new mongoose.Schema({
-  location: { type: String, required: true }, // Ubicación de la cámara o evento
+  location: { type: String, required: true,  default: "Ubicación no especificada"}, // Ubicación de la cámara o evento
   time: { type: Date, default: Date.now }, // Fecha/hora del incidente
   residentName: { type: String, default: "No registrado" }, // Nombre del residente
   detail: { type: String, default: "" }, // Detalles del evento

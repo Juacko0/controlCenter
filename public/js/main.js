@@ -9,6 +9,9 @@ const incidentTime = document.getElementById("incidentTime");
 const incidentDetail = document.getElementById("incidentDetail");
 const historyContainer = document.getElementById("incidentHistory");
 const alertSound = document.getElementById("alertSound");
+const modal = document.getElementById("dataModal");
+const modalTitle = document.getElementById("modalTitle");
+const modalContent = document.getElementById("modalContent");
 
 // ==============================
 // 📜 Variables globales
@@ -99,7 +102,7 @@ function updateQuickHistory() {
 
 
 // Cerrar = guardar como pendiente
-closeModal.addEventListener("click", async (e) => {
+closeIncidentModal.addEventListener("click", async (e) => {
   e.stopPropagation();
   const incident = {
     location: incidentLocation.textContent,
@@ -137,6 +140,18 @@ closeModal.addEventListener("click", async (e) => {
 // Marcar atendido
 markAttended.addEventListener("click", async (e) => {
   e.stopPropagation();
+
+    // 🧩 Validación de campos obligatorios
+  const location = incidentLocation.textContent.trim();
+  const time = incidentTime.textContent.trim();
+  const detail = incidentDetail.value.trim();
+  const resident = document.getElementById("incidentResident")?.value.trim() || "";
+
+  if (!location || !time || !detail || !resident) {
+    alert("⚠️ Debes completar todos los campos antes de marcar como atendido.");
+    return;
+  }
+
   const incident = {
     location: incidentLocation.textContent,
     time: new Date(),
@@ -456,3 +471,378 @@ document.getElementById("applyFilters").addEventListener("click", async () => {
   }
 });
 
+// ==============================
+// 🎥 Conexión RTSP
+// ==============================
+if (typeof loadPlayer !== "undefined") {
+  const camCanvas = document.getElementById("cam1");
+  loadPlayer({
+    url: "ws://" + location.host + "/api/stream",
+    canvas: camCanvas,
+  });
+} else {
+  console.warn("⚠️ El script de rtsp-relay no se ha cargado todavía.");
+}
+
+document.getElementById("btnProfesionales").addEventListener("click", async () => {
+  await openModal("Gestión de Profesionales", "/profesionales");
+});
+
+document.getElementById("btnResidentes").addEventListener("click", async () => {
+  await openModal("Gestión de Residentes", "/residentes");
+});
+
+closeModal.addEventListener("click", () => {
+  modal.classList.add("hidden");
+});
+
+modal.addEventListener("click", (e) => {
+  if (e.target === modal) modal.classList.add("hidden");
+});
+
+async function openModal(title, apiUrl) {
+  modalTitle.textContent = title;
+  modalContent.innerHTML = "<p class='text-gray-500'>Cargando datos...</p>";
+  modal.classList.remove("hidden");
+
+  try {
+    const res = await fetch(apiUrl);
+    const data = await res.json();
+
+    if (title.includes("Profesionales")) {
+      renderProfesionales(data);
+    } else {
+      renderResidentes(data);
+    }
+  } catch (err) {
+    modalContent.innerHTML = `<p class="text-red-500">Error cargando datos: ${err.message}</p>`;
+  }
+}
+
+function renderProfesionales(profesionales) {
+  let table = `
+    <table class="min-w-full border border-gray-300">
+      <thead>
+        <tr class="bg-blue-700 text-white">
+          <th class="border p-2">ID</th>
+          <th class="border p-2">Nombre</th>
+          <th class="border p-2">Horario</th>
+          <th class="border p-2">Código Suscripción PWA</th>
+          <th class="border p-2">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  profesionales.forEach(p => {
+    table += `
+      <tr class="hover:bg-blue-100 transition">
+        <td class="border p-2">${p._id || "N/A"}</td>
+        <td class="border p-2">${p.nombre || "Sin nombre"}</td>
+        <td class="border p-2">${p.horario || "-"}</td>
+        <td class="border p-2">${p.codigoSuscripcion || "No registrado"}</td>
+        <td class="border p-2">${p.estado || "Desconocido"}</td>
+      </tr>
+    `;
+  });
+  table += `</tbody></table>`;
+  modalContent.innerHTML = table;
+}
+
+function renderResidentes(residentes) {
+  let table = `
+    <table class="min-w-full border border-gray-300">
+      <thead>
+        <tr class="bg-green-700 text-white">
+          <th class="border p-2">ID</th>
+          <th class="border p-2">Nombre Completo</th>
+          <th class="border p-2">Apoyo para Caminar</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  residentes.forEach(r => {
+    table += `
+      <tr class="hover:bg-green-100 transition">
+        <td class="border p-2">${r._id || "N/A"}</td>
+        <td class="border p-2">${r.nombreCompleto || r.nombre || "Sin nombre"}</td>
+        <td class="border p-2">${r.apoyoCaminar ? "Sí" : "No"}</td>
+      </tr>
+    `;
+  });
+  table += `</tbody></table>`;
+  modalContent.innerHTML = table;
+}
+
+// ==============================
+// 🔔 REGISTRO Y SUSCRIPCIÓN PUSH
+// ==============================
+async function initPushNotifications() {
+  if (!("serviceWorker" in navigator)) {
+    console.warn("❌ Este navegador no soporta Service Workers");
+    return;
+  }
+
+  try {
+    // Esperar a que el SW esté listo
+    const reg = await navigator.serviceWorker.ready;
+    console.log("🟢 Service Worker listo:", reg);
+
+    // Solicitar permiso al usuario
+    const permission = await Notification.requestPermission();
+    console.log("🔔 Estado del permiso:", permission);
+
+    if (permission !== "granted") {
+      console.warn("🚫 Permiso de notificaciones denegado por el usuario");
+      return;
+    }
+
+    // Obtener la clave pública VAPID desde el servidor
+    const response = await fetch("/vapidPublicKey");
+    if (!response.ok) throw new Error("No se pudo obtener la clave pública VAPID");
+    const vapidPublicKey = await response.text();
+
+    // Convertir la clave base64 a Uint8Array
+    const convertedKey = urlBase64ToUint8Array(vapidPublicKey);
+
+    // Crear la suscripción
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: convertedKey
+    });
+
+    console.log("📩 Suscripción creada:", subscription);
+
+   // 🧠 Aquí colocas el ID del profesional actual (puedes obtenerlo dinámicamente más adelante)
+const profesionalId = "P001"; // Ejemplo temporal
+
+// Enviar la suscripción junto con el profesional
+const saveResponse = await fetch("/subscribe", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    subscription,
+    profesionalCodigo: "P001" // 👈 Cambia dinámicamente según el usuario que se suscribe
+  })
+});
+
+    if (saveResponse.ok) {
+      console.log("✅ Suscripción guardada en la base de datos");
+    } else {
+      console.error("❌ Error guardando la suscripción:", saveResponse.status);
+    }
+  } catch (err) {
+    console.error("❌ Error durante la suscripción push:", err);
+  }
+}
+
+// Función auxiliar para convertir la clave base64 a Uint8Array
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// Ejecutar en el arranque
+window.addEventListener("load", () => {
+  initPushNotifications();
+});
+
+// ==============================
+// 📱 Suscripción a notificaciones Push
+// ==============================
+async function subscribeUserToPush(profesionalCodigo) {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+
+    // 🔑 Obtener la clave pública del servidor
+    const response = await fetch("/vapidPublicKey");
+    const vapidPublicKey = await response.text();
+    const convertedKey = urlBase64ToUint8Array(vapidPublicKey);
+
+    // 💬 Suscribirse a notificaciones
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: convertedKey,
+    });
+
+    // 📤 Enviar suscripción al backend junto con el código del profesional
+    const res = await fetch("/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription, profesionalCodigo }),
+    });
+
+    const data = await res.json();
+    console.log("✅ Suscripción registrada:", data);
+    alert(`Notificaciones activadas para el profesional ${profesionalCodigo}`);
+
+  } catch (err) {
+    console.error("❌ Error al suscribirse:", err);
+  }
+}
+
+// 🔧 Convierte la clave base64 a Uint8Array
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, "+")
+    .replace(/_/g, "/");
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+//===============================
+//===========LOGIN===============
+//===============================
+const loginForm = document.getElementById("loginForm");
+const loginOverlay = document.getElementById("loginOverlay");
+
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const usuario = document.getElementById("usuario").value.trim();
+  const contraseña = document.getElementById("password").value.trim();
+
+  if (!usuario || !contraseña) {
+    alert("⚠️ Ingresa tu usuario y contraseña.");
+    return;
+  }
+
+  try {
+  const res = await fetch("/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usuario, contraseña })
+  });
+
+  const data = await res.json();
+
+  if (res.ok) {
+    // Guardar token JWT
+    localStorage.setItem("token", data.token);
+
+    // Guardar usuario activo
+    localStorage.setItem("usuarioActivo", JSON.stringify(data.usuario));
+
+    // Ocultar login y mostrar panel
+    loginOverlay.style.display = "none";
+    document.body.classList.remove("overflow-hidden");
+
+    // Mostrar usuario en la interfaz
+    document.getElementById("usuarioActivoLabel").textContent = data.usuario.usuario;
+
+    console.log("✅ Sesión iniciada:", data.usuario.usuario);
+  } else {
+    alert(data.message || "❌ Credenciales incorrectas.");
+  }
+} catch (err) {
+  console.error("❌ Error en el login:", err);
+}
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  const loginOverlay = document.getElementById("loginOverlay");
+  const usuarioLabel = document.getElementById("usuarioActivoLabel");
+
+  // Mostrar usuario activo basado en JWT
+  async function mostrarUsuarioActivo() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch("/me", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Tomar username del JWT
+        const nombre = data.usuario.usuario || "Desconocido";
+        usuarioLabel.textContent = `👤 ${nombre}`;
+
+        // Ocultar overlay de login si existe
+        if (loginOverlay) loginOverlay.style.display = "none";
+        document.body.classList.remove("overflow-hidden");
+      } else {
+        usuarioLabel.textContent = "";
+        localStorage.removeItem("token"); // eliminar token inválido
+      }
+    } catch (err) {
+      console.error("Error obteniendo usuario:", err);
+      usuarioLabel.textContent = "";
+      localStorage.removeItem("token");
+    }
+  }
+
+  mostrarUsuarioActivo();
+
+  // Función de login usando JWT
+  const formLogin = document.getElementById("loginForm");
+  if (formLogin) {
+    formLogin.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const usuario = document.getElementById("inputUsuario").value;
+      const contraseña = document.getElementById("inputContraseña").value;
+
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ usuario, contraseña })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          localStorage.setItem("token", data.token); // Guardar JWT
+          mostrarUsuarioActivo(); // Mostrar usuario sin recargar
+        } else {
+          alert(data.message || "❌ Credenciales incorrectas.");
+        }
+      } catch (err) {
+        console.error("Error en login:", err);
+      }
+    });
+  }
+
+  // Función de logout
+  const btnLogout = document.getElementById("logoutBtn");
+  if (btnLogout) {
+    btnLogout.addEventListener("click", () => {
+      localStorage.removeItem("token");
+      usuarioLabel.textContent = "";
+      if (loginOverlay) loginOverlay.style.display = "flex";
+      document.body.classList.add("overflow-hidden");
+    });
+  }
+});
+
+// Botón de logout
+const btnLogout = document.getElementById("logoutButton");
+
+btnLogout.addEventListener("click", () => {
+  // 1️⃣ Eliminar token
+  localStorage.removeItem("token");
+
+  // 2️⃣ Limpiar usuario activo en la interfaz
+  document.getElementById("usuarioActivoLabel").textContent = "";
+
+  // 3️⃣ Mostrar nuevamente el login
+  loginOverlay.style.display = "flex";
+  document.body.classList.add("overflow-hidden");
+
+  console.log("✅ Sesión cerrada");
+});
