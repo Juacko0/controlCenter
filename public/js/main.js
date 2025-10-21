@@ -846,3 +846,21 @@ btnLogout.addEventListener("click", () => {
 
   console.log("✅ Sesión cerrada");
 });
+
+async function startLocalCamera() {
+  const videoElement = document.getElementById("localCamera");
+  
+  try {
+    // ✅ Pedir acceso a la cámara (USB o integrada)
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    videoElement.srcObject = stream;
+    console.log("🎥 Cámara local iniciada correctamente");
+  } catch (error) {
+    console.error("❌ Error al acceder a la cámara local:", error);
+    alert("No se pudo acceder a la cámara. Verifica los permisos del navegador.");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  startLocalCamera();
+});

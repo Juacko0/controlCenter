@@ -94,7 +94,13 @@
   <div id="mainSection" class="flex flex-1 overflow-hidden">
     <!-- Cámaras -->
     <section class="flex-1 grid grid-cols-2 gap-2 p-2 overflow-y-auto">
-      <canvas id="cam1" class="camera bg-black rounded-lg" data-location="Cámara Laptop"></canvas>
+       <!-- <video id="videoCam" autoplay playsinline class="hidden"></video> -->
+      <!-- <canvas id="cam1" class="camera bg-black rounded-lg" data-location="Cámara Laptop"></canvas> -->
+       
+      <div class="camera bg-gray-700 flex items-center justify-center rounded-lg" data-location="Pasillo Sur">
+      <video id="localCamera" autoplay playsinline muted class="rounded-lg shadow-lg w-full"></video>
+      </div> 
+
       <div class="camera bg-gray-700 flex items-center justify-center rounded-lg" data-location="Pasillo Norte">Cámara 2</div>
       <div class="camera bg-gray-700 flex items-center justify-center rounded-lg" data-location="Comedor">Cámara 3</div>
       <div class="camera bg-gray-700 flex items-center justify-center rounded-lg" data-location="Habitación 12">Cámara 4</div>
